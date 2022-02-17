@@ -28,7 +28,6 @@ class ConfigService {
   }
 
   public getTypeOrmConfig(): TypeOrmModuleOptions {
-    console.log(__dirname);
     return {
       type: 'postgres',
 
@@ -39,15 +38,6 @@ class ConfigService {
       database: this.getValue('POSTGRES_DATABASE'),
 
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-
-      migrationsTableName: 'migration',
-
-      migrations: ['src/migration/*.ts'],
-
-      cli: {
-        migrationsDir: 'src/migration',
-      },
-
       ssl: this.isProduction(),
     };
   }
