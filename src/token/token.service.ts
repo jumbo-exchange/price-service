@@ -13,16 +13,21 @@ export class TokenService {
     try {
       const tokenPrices = await requestData();
       const filteredTokens = validateTokens(tokenPrices);
-      console.log(tokenPrices);
-      const tokenRepository = await getRepository(Token);
-      const newTokens = filteredTokens.map((el) => {
-        const token = new Token();
-        token.decimals = el.decimals;
-        token.symbol = el.symbol;
-        token.price = el.price;
-      });
-
-      await Promise.all(newTokens.map((token) => tokenRepository.save(token)));
+      const tokenRepository = getRepository(Token);
+      const newTokens: Token[] = filteredTokens.map(
+        ([key, value]: [
+          key: string,
+          value: { decimals: number; symbol: string; price: string },
+        ]) => {
+          const token = new Token();
+          token.id = key;
+          token.decimals = value.decimals;
+          token.symbol = value.symbol;
+          token.price = value.price;
+          return token;
+        },
+      );
+      await tokenRepository.save(newTokens);
     } catch (e) {
       console.log(e);
     }
@@ -31,7 +36,6 @@ export class TokenService {
 
 const requestData = async () => {
   try {
-    console.log(process.env.API + process.env.API_PATH);
     const tokenResults = await axios.get(
       process.env.API + process.env.API_PATH,
     );
@@ -42,5 +46,5 @@ const requestData = async () => {
 };
 
 const validateTokens = (tokens) => {
-  return tokens;
+  return Object.entries(tokens);
 };

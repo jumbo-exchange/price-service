@@ -1,16 +1,16 @@
-import { PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
-
+import { Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
+@Entity()
 export class Token {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryColumn({ unique: true })
   id: string;
 
-  @Column({ type: 'bigint', default: true })
+  @Column()
   decimals: number;
 
-  @Column({ type: 'varchar', length: 30 })
+  @Column()
   symbol: string;
 
-  @Column({ type: 'varchar', length: 300 })
+  @Column()
   price: string;
 
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
