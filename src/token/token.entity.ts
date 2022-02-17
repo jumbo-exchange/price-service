@@ -5,7 +5,7 @@ export class Token {
   id: string;
 
   @Column()
-  decimals: number;
+  decimal: number;
 
   @Column()
   symbol: string;
