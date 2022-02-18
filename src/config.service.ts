@@ -39,7 +39,7 @@ class ConfigService {
 
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true,
-      ssl: this.isProduction(),
+      ssl: this.env.POSTGRES_SSL ? !!this.getValue('POSTGRES_SSL') : false,
     };
   }
 }
