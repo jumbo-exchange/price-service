@@ -4,14 +4,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InMemoryCache } from 'apollo-cache-inmemory';
 import ApolloClient from 'apollo-client';
 import { HttpLink } from 'apollo-link-http';
-
+import Big from 'big.js';
 import gql from 'graphql-tag';
 import { Repository } from 'typeorm';
 import fetch from 'cross-fetch';
 
 import { Pool } from './pool.entity';
-import Big from 'big.js';
-import { configService } from 'src/config.service';
+import { configService } from '../../src/config.service';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
@@ -136,8 +135,7 @@ export class PoolService {
     try {
       const query = createQuery(startDate, endDate);
       const requestData = await this.apolloClient.query({ query });
-      const swaps = requestData.data.swaps;
-      return swaps;
+      return requestData.data.swaps;
     } catch (e) {
       this.logger.error(`Error during requesting the data ${e}`);
       return [];
@@ -163,10 +161,7 @@ export class PoolService {
         );
       }
 
-      return Promise.all(requests).catch((e) => {
-        this.logger.error(e);
-        return [];
-      });
+      return Promise.all(requests);
     } catch (e) {
       this.logger.warn(`Data request error: ${e}`);
     }

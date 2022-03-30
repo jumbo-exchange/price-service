@@ -2,10 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
-import { configService } from 'src/config.service';
 import { Repository } from 'typeorm';
 
 import { Token } from './token.entity';
+import { configService } from '../../src/config.service';
 
 @Injectable()
 export class TokenService {
