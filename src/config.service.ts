@@ -27,6 +27,14 @@ class ConfigService {
     return mode != 'DEV';
   }
 
+  public getApolloUrl(): string {
+    return this.getValue('GRAPH_API');
+  }
+
+  public getPriceServiceUrl(): string {
+    return this.getValue('PRICE_API');
+  }
+
   public getTypeOrmConfig(): TypeOrmModuleOptions {
     return {
       type: 'postgres',

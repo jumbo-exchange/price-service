@@ -11,6 +11,10 @@ import fetch from 'cross-fetch';
 
 import { Pool } from './pool.entity';
 import Big from 'big.js';
+import { configService } from 'src/config.service';
+
+const HOUR_IN_SECONDS = 60 * 60;
+const HOURS_IN_DAY = 24;
 
 export const createClient = (uri: string) =>
   new ApolloClient({
@@ -18,16 +22,29 @@ export const createClient = (uri: string) =>
     cache: new InMemoryCache(),
   });
 
-export const HOUR_IN_SECONDS = 60 * 60;
-export const HOURS_IN_DAY = 24;
+interface Swap {
+  id: string;
+  output: string;
+  poolId: number;
+  blockTimestamp: number;
+  tokenInAmount: number;
+  tokenIn: string;
+  tokenOutAmount: number;
+  tokenOut: string;
+  receiptId: string;
+  predecessorId: string;
+}
 
 export const createQuery = (
   blockTimestamp_lte: string | number,
   blockTimestamp_gte: string | number,
+  first = 1000,
+  skip = 0,
 ) => gql`
   query Swaps {
     swaps(
-      first: 1000,
+      first: ${first},
+      skip: ${skip}
       where: {
         blockTimestamp_gte: ${blockTimestamp_gte.toString()}
         blockTimestamp_lte: ${blockTimestamp_lte.toString()}
@@ -50,6 +67,7 @@ export const createQuery = (
 @Injectable()
 export class PoolService {
   private readonly logger = new Logger(PoolService.name);
+  private apolloClient = createClient(configService.getApolloUrl());
 
   constructor(
     @InjectRepository(Pool)
@@ -67,53 +85,43 @@ export class PoolService {
       );
       const flatSwaps = swaps.flat();
       const newPools: { [key: string]: Pool } = flatSwaps.reduce(
-        (
-          acc: { [key: string]: Pool },
-          swap: {
-            id: string;
-            output: string;
-            poolId: number;
-            blockTimestamp: number;
-            tokenInAmount: number;
-            tokenIn: string;
-            tokenOutAmount: number;
-            tokenOut: string;
-            receiptId: string;
-            predecessorId: string;
-          },
-        ) => {
-          const [, poolId] = swap.id?.split(' ');
-          if (!poolId) return { ...acc };
-          let poolFromAcc = acc[poolId];
+        (acc: { [key: string]: Pool }, swap: Swap) => {
+          try {
+            const [, poolId] = swap.id?.split(' ');
+            if (!poolId) return { ...acc };
+            let poolFromAcc = acc[poolId];
 
-          if (!poolFromAcc) {
-            poolFromAcc = new Pool();
-            poolFromAcc.id = poolId;
-            poolFromAcc.tokenFirst = swap.tokenIn;
-            poolFromAcc.tokenSecond = swap.tokenOut;
-            poolFromAcc.volume24hFirst = new Big(swap.tokenInAmount).toFixed(0);
-            poolFromAcc.volume24hSecond = new Big(swap.tokenOutAmount).toFixed(
-              0,
-            );
-          } else {
-            if (poolFromAcc.tokenFirst === swap.tokenIn) {
-              poolFromAcc.volume24hFirst = new Big(poolFromAcc.volume24hFirst)
-                .add(swap.tokenInAmount)
-                .toFixed(0);
-              poolFromAcc.volume24hSecond = new Big(poolFromAcc.volume24hSecond)
-                .add(swap.tokenOutAmount)
-                .toFixed(0);
+            if (!poolFromAcc) {
+              poolFromAcc = new Pool();
+              poolFromAcc.id = poolId;
+              poolFromAcc.tokenFirst = swap.tokenIn;
+              poolFromAcc.tokenSecond = swap.tokenOut;
+              poolFromAcc.volume24hFirst = new Big(swap.tokenInAmount).toFixed(
+                0,
+              );
+              poolFromAcc.volume24hSecond = new Big(
+                swap.tokenOutAmount,
+              ).toFixed(0);
             } else {
+              const [firstAmount, secondAmount] =
+                poolFromAcc.tokenFirst === swap.tokenIn
+                  ? [swap.tokenInAmount, swap.tokenOutAmount]
+                  : [swap.tokenOutAmount, swap.tokenInAmount];
+
               poolFromAcc.volume24hFirst = new Big(poolFromAcc.volume24hFirst)
-                .add(swap.tokenOutAmount)
+                .add(firstAmount)
                 .toFixed(0);
               poolFromAcc.volume24hSecond = new Big(poolFromAcc.volume24hSecond)
-                .add(swap.tokenInAmount)
+                .add(secondAmount)
                 .toFixed(0);
             }
-          }
 
-          return { ...acc, [poolId]: poolFromAcc };
+            acc[poolId] = poolFromAcc;
+            return acc;
+          } catch (e) {
+            this.logger.error(`Error during processing record ${e}`);
+            return acc;
+          }
         },
         {},
       );
@@ -124,9 +132,20 @@ export class PoolService {
     }
   }
 
+  async getSwapHourSwaps(startDate, endDate) {
+    try {
+      const query = createQuery(startDate, endDate);
+      const requestData = await this.apolloClient.query({ query });
+      const swaps = requestData.data.swaps;
+      return swaps;
+    } catch (e) {
+      this.logger.error(`Error during requesting the data ${e}`);
+      return [];
+    }
+  }
+
   async requestDataForDay() {
     try {
-      const client = createClient(process.env.GRAPH_API);
       const hourNow = new Date();
       hourNow.setUTCMilliseconds(0);
       hourNow.setUTCSeconds(0);
@@ -139,13 +158,12 @@ export class PoolService {
       const requests = [];
 
       for (let i = 0; i < HOURS_IN_DAY - 1; i++) {
-        const query = createQuery(resultsPerDay[i], resultsPerDay[i + 1]);
-
-        const result = client.query({ query }).then((res) => res.data.swaps);
-        requests.push(result);
+        requests.push(
+          this.getSwapHourSwaps(resultsPerDay[i], resultsPerDay[i + 1]),
+        );
       }
 
-      return await Promise.all(requests).catch((e) => {
+      return Promise.all(requests).catch((e) => {
         this.logger.error(e);
         return [];
       });
@@ -154,7 +172,8 @@ export class PoolService {
     }
   }
 
-  async findAll(): Promise<Pool[]> {
-    return this.poolRepo.find();
+  async findAll(take = 1000, skip = 0): Promise<Pool[]> {
+    const [data] = await this.poolRepo.findAndCount({ take, skip });
+    return data;
   }
 }

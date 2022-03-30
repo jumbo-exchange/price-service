@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 
 import { Pool } from './pool.entity';
 import { PoolService } from './pool.service';
@@ -8,7 +8,7 @@ export class PoolController {
   constructor(private readonly poolService: PoolService) {}
 
   @Get()
-  findAll(): Promise<Pool[]> {
-    return this.poolService.findAll();
+  findAll(@Query() { take, skip }): Promise<Pool[]> {
+    return this.poolService.findAll(take, skip);
   }
 }
