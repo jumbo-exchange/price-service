@@ -6,10 +6,16 @@ export class Pool {
   id: string;
 
   @Column()
-  volume24hIn: string;
+  volume24hFirst: string;
 
   @Column()
-  volume24hOut: string;
+  volume24hSecond: string;
+
+  @Column()
+  tokenFirst: string;
+
+  @Column()
+  tokenSecond: string;
 
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;

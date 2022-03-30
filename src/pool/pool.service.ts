@@ -65,13 +65,11 @@ export class PoolService {
       swaps.map((array) =>
         this.logger.log(`Results length per hour ${array.length}`),
       );
-
       const flatSwaps = swaps.flat();
-
       const newPools: { [key: string]: Pool } = flatSwaps.reduce(
         (
           acc: { [key: string]: Pool },
-          pool: {
+          swap: {
             id: string;
             output: string;
             poolId: number;
@@ -84,25 +82,35 @@ export class PoolService {
             predecessorId: string;
           },
         ) => {
-          const [, poolId] = pool.id?.split(' ');
+          const [, poolId] = swap.id?.split(' ');
           if (!poolId) return { ...acc };
           let poolFromAcc = acc[poolId];
 
           if (!poolFromAcc) {
             poolFromAcc = new Pool();
             poolFromAcc.id = poolId;
-          }
-
-          if (!poolFromAcc.volume24hIn || !poolFromAcc.volume24hOut) {
-            poolFromAcc.volume24hIn = new Big(pool.tokenInAmount).toFixed(0);
-            poolFromAcc.volume24hOut = new Big(pool.tokenOutAmount).toFixed(0);
+            poolFromAcc.tokenFirst = swap.tokenIn;
+            poolFromAcc.tokenSecond = swap.tokenOut;
+            poolFromAcc.volume24hFirst = new Big(swap.tokenInAmount).toFixed(0);
+            poolFromAcc.volume24hSecond = new Big(swap.tokenOutAmount).toFixed(
+              0,
+            );
           } else {
-            poolFromAcc.volume24hIn = new Big(poolFromAcc.volume24hIn)
-              .add(pool.tokenInAmount)
-              .toFixed(0);
-            poolFromAcc.volume24hOut = new Big(poolFromAcc.volume24hOut)
-              .add(pool.tokenOutAmount)
-              .toFixed(0);
+            if (poolFromAcc.tokenFirst === swap.tokenIn) {
+              poolFromAcc.volume24hFirst = new Big(poolFromAcc.volume24hFirst)
+                .add(swap.tokenInAmount)
+                .toFixed(0);
+              poolFromAcc.volume24hSecond = new Big(poolFromAcc.volume24hSecond)
+                .add(swap.tokenOutAmount)
+                .toFixed(0);
+            } else {
+              poolFromAcc.volume24hFirst = new Big(poolFromAcc.volume24hFirst)
+                .add(swap.tokenOutAmount)
+                .toFixed(0);
+              poolFromAcc.volume24hSecond = new Big(poolFromAcc.volume24hSecond)
+                .add(swap.tokenInAmount)
+                .toFixed(0);
+            }
           }
 
           return { ...acc, [poolId]: poolFromAcc };
