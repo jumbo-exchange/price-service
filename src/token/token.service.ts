@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Repository } from 'typeorm';
 
 import { Token } from './token.entity';
-import { configService } from '../../src/config.service';
+import { configService } from '../config.service';
 
 @Injectable()
 export class TokenService {

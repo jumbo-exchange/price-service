@@ -10,7 +10,7 @@ import { Repository } from 'typeorm';
 import fetch from 'cross-fetch';
 
 import { Pool } from './pool.entity';
-import { configService } from '../../src/config.service';
+import { configService } from '../config.service';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
