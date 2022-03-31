@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Repository } from 'typeorm';
 
 import { Token } from './token.entity';
+import { configService } from '../../src/config.service';
 
 @Injectable()
 export class TokenService {
@@ -48,9 +49,8 @@ export class TokenService {
 
   async requestData() {
     try {
-      const tokenResults = await axios.get(
-        process.env.API + process.env.API_PATH,
-      );
+      const priceServiceUrl = configService.getPriceServiceUrl();
+      const tokenResults = await axios.get(priceServiceUrl);
       return tokenResults.data;
     } catch (e) {
       this.logger.warn(`Data request error: ${e}`);
