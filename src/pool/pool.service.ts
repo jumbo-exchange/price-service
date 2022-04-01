@@ -95,23 +95,17 @@ export class PoolService {
               poolFromAcc.id = poolId;
               poolFromAcc.tokenFirst = swap.tokenIn;
               poolFromAcc.tokenSecond = swap.tokenOut;
-              poolFromAcc.volume24hFirst = new Big(swap.tokenInAmount).toFixed(
-                0,
-              );
-              poolFromAcc.volume24hSecond = new Big(
-                swap.tokenOutAmount,
-              ).toFixed(0);
-            } else {
-              const [firstAmount, secondAmount] =
-                poolFromAcc.tokenFirst === swap.tokenIn
-                  ? [swap.tokenInAmount, swap.tokenOutAmount]
-                  : [swap.tokenOutAmount, swap.tokenInAmount];
+              poolFromAcc.volume24hFirst = '0';
+              poolFromAcc.volume24hSecond = '0';
+            }
 
+            if (poolFromAcc.tokenFirst === swap.tokenIn) {
               poolFromAcc.volume24hFirst = new Big(poolFromAcc.volume24hFirst)
-                .add(firstAmount)
+                .add(swap.tokenInAmount)
                 .toFixed(0);
+            } else {
               poolFromAcc.volume24hSecond = new Big(poolFromAcc.volume24hSecond)
-                .add(secondAmount)
+                .add(swap.tokenInAmount)
                 .toFixed(0);
             }
 
