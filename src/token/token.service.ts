@@ -37,6 +37,8 @@ export class TokenService {
           token.decimal = value.decimal;
           token.symbol = value.symbol;
           token.price = value.price;
+          token.updatedAt = new Date();
+
           return token;
         },
       );
