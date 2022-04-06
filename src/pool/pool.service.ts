@@ -109,6 +109,8 @@ export class PoolService {
                 .toFixed(0);
             }
 
+            poolFromAcc.updatedAt = new Date();
+
             acc[poolId] = poolFromAcc;
             return acc;
           } catch (e) {
