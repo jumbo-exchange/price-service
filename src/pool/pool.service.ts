@@ -14,7 +14,7 @@ import { configService } from '../config.service';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
-const SECONDS_IN_HOUR = 60 * 60 * 1000;
+const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
 
 export const createClient = (uri: string) =>
   new ApolloClient({
@@ -169,7 +169,7 @@ export class PoolService {
     const currentDate = Date.now();
     return data.filter((pool) => {
       const poolDate = new Date(pool.updatedAt).getTime();
-      return currentDate - poolDate < SECONDS_IN_HOUR * HOURS_IN_DAY;
+      return currentDate - poolDate < MILLISECONDS_IN_HOUR * HOURS_IN_DAY;
     });
   }
 }
