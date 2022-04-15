@@ -14,6 +14,7 @@ import { configService } from '../config.service';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
+const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
 
 export const createClient = (uri: string) =>
   new ApolloClient({
@@ -73,7 +74,7 @@ export class PoolService {
     private readonly poolRepo: Repository<Pool>,
   ) {}
 
-  @Cron('* * * * *')
+  @Cron('* */4 * * *')
   async handleCron() {
     this.logger.verbose('handleCron for pool service');
 
@@ -165,6 +166,10 @@ export class PoolService {
 
   async findAll(take = 1000, skip = 0): Promise<Pool[]> {
     const [data] = await this.poolRepo.findAndCount({ take, skip });
-    return data;
+    const currentDate = Date.now();
+    return data.filter((pool) => {
+      const poolDate = new Date(pool.updatedAt).getTime();
+      return currentDate - poolDate < MILLISECONDS_IN_HOUR * HOURS_IN_DAY;
+    });
   }
 }
