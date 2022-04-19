@@ -35,6 +35,33 @@ class ConfigService {
     return this.getValue('PRICE_API');
   }
 
+  public getContractUrl(): string {
+    return this.getValue('CONTRACT_URL');
+  }
+
+  public getHelperUrl(): string {
+    return this.getValue('HELPER_URL');
+  }
+
+  public getNodeUrl(): string {
+    return this.getValue('NODE_URL');
+  }
+
+  public getNetworkId(): string {
+    return this.getValue('NETWORK_ID');
+  }
+
+  public getJumboPoolId(): string {
+    return this.getValue('JUMBO_POOL_ID');
+  }
+
+  public getJumboTokenId(): string {
+    return this.getValue('JUMBO_TOKEN_ADDRESS');
+  }
+  public getNearTokenId(): string {
+    return this.getValue('WRAP_NEAR_ADDRESS');
+  }
+
   public getTypeOrmConfig(): TypeOrmModuleOptions {
     return {
       type: 'postgres',
