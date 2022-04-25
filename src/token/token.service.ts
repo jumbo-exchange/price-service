@@ -27,8 +27,6 @@ export class TokenService {
 
   @Cron('*/30 * * * * *')
   async handleCron() {
-    this.logger.verbose('handleCron');
-
     try {
       const nearAddress = configService.getNearTokenId();
       const jumboAddress = configService.getJumboTokenId();
@@ -127,8 +125,6 @@ export class TokenService {
     try {
       const nearHelperUrl = configService.getHelperUrl();
       const nearData = await axios.get(`${nearHelperUrl}/fiat`);
-      this.logger.warn(`Data from helper: ${nearData.data.near.usd}`);
-
       return nearData.data.near.usd;
     } catch (e) {
       this.logger.warn(`Data request error from helper: ${e}`);
