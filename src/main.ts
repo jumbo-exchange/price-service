@@ -10,8 +10,8 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
-        .setTitle('Item API')
-        .setDescription('My Item API')
+        .setTitle('🐘 Api')
+        .setDescription('Jumbo Exchange token price service')
         .build(),
     );
 

@@ -14,7 +14,7 @@ export const calculatePriceForToken = (
 ) => {
   if (!price) return '0';
   if (Big(firstAmount).lte(0)) return '0';
-  return new Big(firstAmount).mul(price).div(secondAmount).toFixed(2);
+  return new Big(firstAmount).mul(price).div(secondAmount).toFixed(5);
 };
 
 export const formatTokenAmount = (

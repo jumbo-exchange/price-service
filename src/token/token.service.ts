@@ -13,7 +13,7 @@ import {
   calculateVolume,
   formatTokenAmount,
 } from 'src/helpers';
-import { DEFAULT_PAGE_LIMIT, NEAR_DECIMALS } from 'src/constants';
+import { DEFAULT_PAGE_LIMIT } from 'src/constants';
 import Big from 'big.js';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class TokenService {
     private readonly tokenRepo: Repository<Token>,
   ) {}
 
-  @Cron('*/10 * * * * *')
+  @Cron('*/30 * * * * *')
   async handleCron() {
     this.logger.verbose('handleCron');
 
@@ -34,8 +34,11 @@ export class TokenService {
       const jumboAddress = configService.getJumboTokenId();
       const tokenPrices = await this.requestData();
       const filteredTokens = Object.entries(tokenPrices);
-      const nearFiatPrice = await this.requestNearPrice();
-      const poolsFromJumbo = await this.getDataFromPools();
+      const [nearFiatPrice, poolsFromJumbo] = await Promise.all([
+        this.requestNearPrice(),
+        this.getDataFromPools(),
+      ]);
+
       const [jumboPrice] = await this.calculateJumboPrice(
         poolsFromJumbo,
         nearFiatPrice,
@@ -51,25 +54,54 @@ export class TokenService {
         jumboPrice,
         nearFiatPrice,
       );
+      const newIds = Object.keys(newPrices);
 
-      Object.entries(newPrices).map(([key, value]) =>
-        this.logger.log(`OPPPAS ${key} ${JSON.stringify(value)}`),
+      const uniqueTokensIds = newIds.filter((id) => !tokenPrices[id]);
+      const uniqueTokensFiltered: {
+        [key: string]: { decimal: number; symbol: string; price: string };
+      } = uniqueTokensIds.reduce(
+        (
+          acc: {
+            [key: string]: { decimal: number; symbol: string; price: string };
+          },
+          id: string,
+        ) => {
+          acc[id] = {
+            decimal: newPrices[id].token.decimal,
+            symbol: newPrices[id].token.symbol,
+            price: newPrices[id].price,
+          };
+          return acc;
+        },
+        {},
       );
+      const filteredUniqueTokens = Object.entries(uniqueTokensFiltered);
 
-      const newTokens: Token[] = filteredTokens.map(
+      const newTokens: Token[] = [
+        ...filteredTokens,
+        ...filteredUniqueTokens,
+      ].map(
         ([key, value]: [
           key: string,
           value: { decimal: number; symbol: string; price: string },
         ]) => {
-          this.logger.log(
-            `Token accountId=${key} symbol=${value.symbol} decimals=${value.decimal} price=${value.price}`,
-          );
           const token = new Token();
+          this.logger.log(`Token ${key} updated`);
           token.id = key;
           token.decimal = value.decimal;
           token.symbol = value.symbol;
-          token.price = value.price;
+          if (newPrices[key] && Number(newPrices[key].price) > 0) {
+            this.logger.log(
+              `with internal price ${newPrices[key].price} (external ${value.price})`,
+            );
+            token.price = newPrices[key].price;
+          } else {
+            this.logger.log(`with external price ${value.price}`);
+            token.price = value.price;
+          }
+
           token.updatedAt = new Date();
+          this.logger.log(`----------------`);
 
           return token;
         },
@@ -142,7 +174,13 @@ export class TokenService {
     }
   }
 
-  async calculatePrices(poolsFromJumbo, jumboPrice, nearFiatPrice: string) {
+  async calculatePrices(
+    poolsFromJumbo,
+    jumboPrice,
+    nearFiatPrice: string,
+  ): Promise<{
+    [key: string]: { price: string; volume: string; token: Token };
+  }> {
     const jumboAddress = configService.getJumboTokenId();
     const nearAddress = configService.getNearTokenId();
 
@@ -154,33 +192,24 @@ export class TokenService {
       const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
       const fiatId = isNearFiat ? nearAddress : jumboAddress;
 
-      const [price, tokenId] = await this.calculatePriceForPool(
+      const [price, token] = await this.calculatePriceForPool(
         poolsFromJumbo[pool],
         fiatPrice,
         fiatId,
       );
 
-      // const [price, tokenId] = [
-      //   '10',
-      //   item.token_account_ids.find((el) => el !== fiatId),
-      // ];
-
       const calculatedVolume = calculateVolume(poolsFromJumbo[pool].supplies, {
-        [tokenId]: price,
+        [token.id]: price,
         [fiatId]: fiatPrice,
       });
-
-      this.logger.log(
-        `What ${calculatedVolume} ${tokenId} ${
-          Object.entries(newPrices).length
-        }`,
-      );
+      if (Big(calculatedVolume).eq(0) || Big(calculatedVolume).lt(1000))
+        continue;
 
       if (
-        !newPrices[tokenId] ||
-        Big(calculatedVolume).gt(newPrices[tokenId]?.volume || 0)
+        !newPrices[token.id] ||
+        Big(calculatedVolume).gt(newPrices[token.id]?.volume || 0)
       ) {
-        newPrices[tokenId] = { price, volume: calculatedVolume };
+        newPrices[token.id] = { price, volume: calculatedVolume, token };
       }
     }
     return newPrices;
@@ -190,37 +219,35 @@ export class TokenService {
     pool,
     fiatPrice,
     fiatTokenId = configService.getNearTokenId(),
-  ) {
-    if (!pool.token_account_ids.includes(fiatTokenId)) return '0';
-
+  ): Promise<[string, Token]> {
     const [firstToken, secondToken] = pool.token_account_ids;
     const [fiatToken, fungibleToken] =
-      firstToken === configService.getNearTokenId()
+      firstToken === fiatTokenId
         ? [firstToken, secondToken]
         : [secondToken, firstToken];
-    const token = await this.tryGetToken(fungibleToken);
+    const tokenMetadata: Token = await this.tryGetToken(fungibleToken);
+    const fiatTokenMetadata = await this.tryGetToken(fiatToken);
 
-    const fiatNearAmount = pool.supplies[fiatToken];
+    const fiatAmount = pool.supplies[fiatToken];
     const fungibleTokenAmount = pool.supplies[fungibleToken];
 
-    const fiatNearAmountInDecimals = formatTokenAmount(
-      fiatNearAmount,
-      NEAR_DECIMALS,
+    const fiatAmountInDecimals = formatTokenAmount(
+      fiatAmount,
+      fiatTokenMetadata.decimal,
       0,
     );
     const fungibleTokenAmountInDecimals = formatTokenAmount(
       fungibleTokenAmount,
-      token.decimal,
+      tokenMetadata.decimal,
       0,
     );
-
     return [
       calculatePriceForToken(
-        fiatNearAmountInDecimals,
+        fiatAmountInDecimals,
         fungibleTokenAmountInDecimals,
         fiatPrice,
       ),
-      fungibleToken,
+      tokenMetadata,
     ];
   }
 
