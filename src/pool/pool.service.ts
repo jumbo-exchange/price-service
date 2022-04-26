@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InMemoryCache } from 'apollo-cache-inmemory';
 import ApolloClient from 'apollo-client';
@@ -11,6 +11,7 @@ import fetch from 'cross-fetch';
 
 import { Pool } from './pool.entity';
 import { configService } from '../config.service';
+import { Swap } from 'src/interfaces';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
@@ -21,19 +22,6 @@ export const createClient = (uri: string) =>
     link: new HttpLink({ uri, fetch: fetch }),
     cache: new InMemoryCache(),
   });
-
-interface Swap {
-  id: string;
-  output: string;
-  poolId: number;
-  blockTimestamp: number;
-  tokenInAmount: number;
-  tokenIn: string;
-  tokenOutAmount: number;
-  tokenOut: string;
-  receiptId: string;
-  predecessorId: string;
-}
 
 export const createQuery = (
   blockTimestamp_lte: string | number,
@@ -74,7 +62,7 @@ export class PoolService {
     private readonly poolRepo: Repository<Pool>,
   ) {}
 
-  @Cron('* */4 * * *')
+  @Cron(CronExpression.EVERY_4_HOURS)
   async handleCron() {
     this.logger.verbose('handleCron for pool service');
 

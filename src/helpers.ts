@@ -1,12 +1,6 @@
 import Big from 'big.js';
 import { BASE } from './constants';
 
-export function assertFulfilled<T>(
-  item: PromiseSettledResult<T>,
-): item is PromiseFulfilledResult<T> {
-  return item.status === 'fulfilled';
-}
-
 export const calculatePriceForToken = (
   firstAmount: string,
   secondAmount: string,
@@ -30,10 +24,10 @@ export const formatTokenAmount = (
 export function calculateVolume(
   supplies: { [key: string]: string },
   tokens: { [key: string]: string },
-) {
+): string {
   const suppliesTokens = Object.entries(supplies);
 
-  if (!suppliesTokens.every(([token]) => tokens[token])) return 0;
+  if (!suppliesTokens.every(([token]) => tokens[token])) return '0';
   return suppliesTokens
     .reduce((acc, [key, value]) => {
       return acc.add(Big(value).mul(tokens[key]));

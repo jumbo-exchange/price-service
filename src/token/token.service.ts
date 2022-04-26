@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import { Repository } from 'typeorm';
@@ -8,13 +8,17 @@ import { Token } from './token.entity';
 import { configService } from '../config.service';
 import initializeNearService from 'src/nearService';
 import {
-  assertFulfilled,
   calculatePriceForToken,
   calculateVolume,
   formatTokenAmount,
 } from 'src/helpers';
-import { DEFAULT_PAGE_LIMIT } from 'src/constants';
+import {
+  DEFAULT_PAGE_LIMIT,
+  EMPTY_POOL_VOLUME,
+  LOW_LIQUIDITY_POOL_VOLUME,
+} from 'src/constants';
 import Big from 'big.js';
+import { TokenData } from 'src/interfaces';
 
 @Injectable()
 export class TokenService {
@@ -25,7 +29,7 @@ export class TokenService {
     private readonly tokenRepo: Repository<Token>,
   ) {}
 
-  @Cron('*/30 * * * * *')
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCron() {
     try {
       const nearAddress = configService.getNearTokenId();
@@ -55,15 +59,8 @@ export class TokenService {
       const newIds = Object.keys(newPrices);
 
       const uniqueTokensIds = newIds.filter((id) => !tokenPrices[id]);
-      const uniqueTokensFiltered: {
-        [key: string]: { decimal: number; symbol: string; price: string };
-      } = uniqueTokensIds.reduce(
-        (
-          acc: {
-            [key: string]: { decimal: number; symbol: string; price: string };
-          },
-          id: string,
-        ) => {
+      const uniqueTokensFiltered = uniqueTokensIds.reduce(
+        (acc: { [key: string]: TokenData }, id: string) => {
           acc[id] = {
             decimal: newPrices[id].token.decimal,
             symbol: newPrices[id].token.symbol,
@@ -73,37 +70,33 @@ export class TokenService {
         },
         {},
       );
+
       const filteredUniqueTokens = Object.entries(uniqueTokensFiltered);
 
       const newTokens: Token[] = [
         ...filteredTokens,
         ...filteredUniqueTokens,
-      ].map(
-        ([key, value]: [
-          key: string,
-          value: { decimal: number; symbol: string; price: string },
-        ]) => {
-          const token = new Token();
-          this.logger.log(`Token ${key} updated`);
-          token.id = key;
-          token.decimal = value.decimal;
-          token.symbol = value.symbol;
-          if (newPrices[key] && Number(newPrices[key].price) > 0) {
-            this.logger.log(
-              `with internal price ${newPrices[key].price} (external ${value.price})`,
-            );
-            token.price = newPrices[key].price;
-          } else {
-            this.logger.log(`with external price ${value.price}`);
-            token.price = value.price;
-          }
+      ].map(([key, value]: [key: string, value: TokenData]) => {
+        const token = new Token();
+        this.logger.log(`Token ${key} updated`);
+        token.id = key;
+        token.decimal = value.decimal;
+        token.symbol = value.symbol;
+        if (newPrices[key] && Number(newPrices[key].price) > 0) {
+          this.logger.log(
+            `with internal price ${newPrices[key].price} (external ${value.price})`,
+          );
+          token.price = newPrices[key].price;
+        } else {
+          this.logger.log(`with external price ${value.price}`);
+          token.price = value.price;
+        }
 
-          token.updatedAt = new Date();
-          this.logger.log(`----------------`);
+        token.updatedAt = new Date();
+        this.logger.log(`----------------`);
 
-          return token;
-        },
-      );
+        return token;
+      });
 
       await this.tokenRepo.save(newTokens);
     } catch (e) {
@@ -131,39 +124,41 @@ export class TokenService {
     }
   }
 
+  private async getPoolsPage(service, from, limit = DEFAULT_PAGE_LIMIT) {
+    try {
+      const poolPage = await service.viewFunction('get_pools', {
+        from_index: from,
+        limit: limit,
+      });
+
+      return poolPage.map((pool) => {
+        pool.supplies = pool.amounts.reduce(
+          (acc: { [tokenId: string]: string }, amount: string, i: number) => {
+            acc[pool.token_account_ids[i]] = amount;
+            return acc;
+          },
+          {},
+        );
+        return pool;
+      });
+    } catch (e) {
+      this.logger.warn(`Data request error from getting pool page: ${e}`);
+      return [];
+    }
+  }
+
   async getDataFromPools() {
     try {
       const service = await initializeNearService();
       const length = await service.viewFunction('get_number_of_pools');
       const pages = Math.ceil(length / DEFAULT_PAGE_LIMIT);
-      const pools = await Promise.allSettled(
+      const pools = await Promise.all(
         [...Array(pages)].map((_, i) =>
-          service.viewFunction('get_pools', {
-            from_index: i * DEFAULT_PAGE_LIMIT,
-            limit: DEFAULT_PAGE_LIMIT,
-          }),
+          this.getPoolsPage(service, i * DEFAULT_PAGE_LIMIT),
         ),
       );
-      return pools
-        .filter(assertFulfilled)
-        .map(({ value }) => value)
-        .flat()
-        .map((pool) => {
-          return {
-            ...pool,
-            supplies: pool.amounts.reduce(
-              (
-                acc: { [tokenId: string]: string },
-                amount: string,
-                i: number,
-              ) => {
-                acc[pool.token_account_ids[i]] = amount;
-                return acc;
-              },
-              {},
-            ),
-          };
-        });
+
+      return pools.flat();
     } catch (e) {
       this.logger.warn(`Data request error from pools: ${e}`);
       return [];
@@ -172,46 +167,79 @@ export class TokenService {
 
   async calculatePrices(
     poolsFromJumbo,
-    jumboPrice,
+    jumboPrice: string,
     nearFiatPrice: string,
   ): Promise<{
     [key: string]: { price: string; volume: string; token: Token };
   }> {
     const jumboAddress = configService.getJumboTokenId();
     const nearAddress = configService.getNearTokenId();
-
     const newPrices = {};
-    for (const pool in poolsFromJumbo) {
-      const isNearFiat = poolsFromJumbo[pool].token_account_ids.includes(
-        configService.getNearTokenId(),
-      );
-      const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
-      const fiatId = isNearFiat ? nearAddress : jumboAddress;
+    const poolsPrices: {
+      price: string;
+      volume: string;
+      token: Token;
+    }[] = await Promise.all(
+      poolsFromJumbo.map((pool) =>
+        this.calculatePriceForPool(
+          pool,
+          nearFiatPrice,
+          jumboPrice,
+          nearAddress,
+          jumboAddress,
+        ),
+      ),
+    );
 
-      const [price, token] = await this.calculatePriceForPool(
-        poolsFromJumbo[pool],
-        fiatPrice,
-        fiatId,
-      );
-
-      const calculatedVolume = calculateVolume(poolsFromJumbo[pool].supplies, {
-        [token.id]: price,
-        [fiatId]: fiatPrice,
-      });
-      if (Big(calculatedVolume).eq(0) || Big(calculatedVolume).lt(1000))
+    for (const pool in poolsPrices) {
+      const poolEntity = poolsPrices[pool];
+      const previousEntity = newPrices[poolEntity.token.id];
+      const { volume } = poolEntity;
+      if (
+        Big(volume).eq(EMPTY_POOL_VOLUME) ||
+        Big(volume).lt(LOW_LIQUIDITY_POOL_VOLUME)
+      )
         continue;
 
-      if (
-        !newPrices[token.id] ||
-        Big(calculatedVolume).gt(newPrices[token.id]?.volume || 0)
-      ) {
-        newPrices[token.id] = { price, volume: calculatedVolume, token };
-      }
+      if (!previousEntity || Big(volume).gt(previousEntity.volume))
+        newPrices[poolEntity.token.id] = poolEntity;
     }
+
     return newPrices;
   }
 
   async calculatePriceForPool(
+    pool,
+    nearFiatPrice: string,
+    jumboPrice: string,
+    nearAddress: string,
+    jumboAddress: string,
+  ): Promise<{
+    price: string;
+    volume: string;
+    token: Token;
+  }> {
+    const isNearFiat = pool.token_account_ids.includes(
+      configService.getNearTokenId(),
+    );
+    const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
+    const fiatId = isNearFiat ? nearAddress : jumboAddress;
+
+    const [price, token] = await this.calculatePriceFromPool(
+      pool,
+      fiatPrice,
+      fiatId,
+    );
+
+    const calculatedVolume = calculateVolume(pool.supplies, {
+      [token.id]: price,
+      [fiatId]: fiatPrice,
+    });
+
+    return { price, volume: calculatedVolume, token };
+  }
+
+  async calculatePriceFromPool(
     pool,
     fiatPrice,
     fiatTokenId = configService.getNearTokenId(),
@@ -248,8 +276,7 @@ export class TokenService {
   }
 
   async tryGetToken(fungibleToken): Promise<Token> {
-    const tokens = await this.findAll();
-    const token = tokens.find((el) => el.id === fungibleToken);
+    const token = await this.findOne(fungibleToken);
 
     if (!token) {
       const service = await initializeNearService();
@@ -274,10 +301,14 @@ export class TokenService {
       (pool) => pool.id === Number(configService.getJumboPoolId()),
     );
 
-    return this.calculatePriceForPool(pool, nearPrice);
+    return this.calculatePriceFromPool(pool, nearPrice);
   }
 
   async findAll(): Promise<Token[]> {
     return this.tokenRepo.find();
+  }
+
+  async findOne(id: string): Promise<Token> {
+    return this.tokenRepo.findOne(id);
   }
 }
