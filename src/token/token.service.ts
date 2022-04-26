@@ -3,22 +3,22 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import { Repository } from 'typeorm';
+import Big from 'big.js';
 
 import { Token } from './token.entity';
 import { configService } from '../config.service';
-import initializeNearService from 'src/nearService';
+import { initializeNearConnection } from '../near-connection';
 import {
   calculatePriceForToken,
   calculateVolume,
   formatTokenAmount,
-} from 'src/helpers';
+} from '../helpers';
 import {
   DEFAULT_PAGE_LIMIT,
   EMPTY_POOL_VOLUME,
   LOW_LIQUIDITY_POOL_VOLUME,
-} from 'src/constants';
-import Big from 'big.js';
-import { TokenData } from 'src/interfaces';
+} from '../constants';
+import { TokenData } from '../interfaces';
 
 interface Pool {
   id: number;
@@ -160,12 +160,12 @@ export class TokenService {
 
   async getDataFromPools() {
     try {
-      const service = await initializeNearService();
-      const length = await service.viewFunction('get_number_of_pools');
+      const connection = await initializeNearConnection();
+      const length = await connection.viewFunction('get_number_of_pools');
       const pages = Math.ceil(length / DEFAULT_PAGE_LIMIT);
       const pools = await Promise.all(
         [...Array(pages)].map((_, i) =>
-          this.getPoolsPage(service, i * DEFAULT_PAGE_LIMIT),
+          this.getPoolsPage(connection, i * DEFAULT_PAGE_LIMIT),
         ),
       );
 
@@ -186,11 +186,11 @@ export class TokenService {
     const jumboAddress = configService.getJumboTokenId();
     const nearAddress = configService.getNearTokenId();
     const newPrices = {};
-    const poolsPrices: {
+    const poolsPrices: Array<{
       price: string;
       volume: string;
       token: Token;
-    }[] = await Promise.all(
+    }> = await Promise.all(
       poolsFromJumbo.map((pool) =>
         this.calculatePriceForPool(
           pool,
@@ -290,8 +290,8 @@ export class TokenService {
     const token = await this.findOne(fungibleToken);
 
     if (!token) {
-      const service = await initializeNearService();
-      const tokenMetadata = await service.getFtMetadata(fungibleToken);
+      const connection = await initializeNearConnection();
+      const tokenMetadata = await connection.getFtMetadata(fungibleToken);
       const newToken = new Token();
 
       newToken.id = fungibleToken;

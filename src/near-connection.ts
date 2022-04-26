@@ -9,7 +9,7 @@ const config = {
   keyStore: new MergeKeyStore([]), // Keystore can be empty since we don't send any transactions
 };
 
-async function initializeNearService() {
+export async function initializeNearConnection() {
   const near = await connect(config);
   const viewAccount = await near.account('');
   return {
@@ -23,5 +23,3 @@ async function initializeNearService() {
       viewAccount.viewFunction(tokenName, 'ft_metadata'),
   };
 }
-
-export default initializeNearService;

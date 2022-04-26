@@ -11,7 +11,7 @@ import fetch from 'cross-fetch';
 
 import { Pool } from './pool.entity';
 import { configService } from '../config.service';
-import { Swap } from 'src/interfaces';
+import { Swap } from '../interfaces';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
