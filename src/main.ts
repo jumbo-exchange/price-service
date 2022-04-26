@@ -6,7 +6,7 @@ import { configService } from './config.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
 
-  if (!configService.isProduction()) {
+  if (configService.isProduction()) {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
