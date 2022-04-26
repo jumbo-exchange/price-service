@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
@@ -29,13 +29,18 @@ interface Pool {
 }
 
 @Injectable()
-export class TokenService {
+export class TokenService implements OnModuleInit {
   private readonly logger = new Logger(TokenService.name);
+  private near: Awaited<ReturnType<typeof initializeNearConnection>>;
 
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepo: Repository<Token>,
   ) {}
+
+  async onModuleInit() {
+    this.near = await initializeNearConnection();
+  }
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCron() {
@@ -160,7 +165,7 @@ export class TokenService {
 
   async getDataFromPools() {
     try {
-      const connection = await initializeNearConnection();
+      const connection = await this.near;
       const length = await connection.viewFunction('get_number_of_pools');
       const pages = Math.ceil(length / DEFAULT_PAGE_LIMIT);
       const pools = await Promise.all(
@@ -290,7 +295,7 @@ export class TokenService {
     const token = await this.findOne(fungibleToken);
 
     if (!token) {
-      const connection = await initializeNearConnection();
+      const connection = await this.near;
       const tokenMetadata = await connection.getFtMetadata(fungibleToken);
       const newToken = new Token();
 
