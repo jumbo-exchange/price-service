@@ -124,6 +124,7 @@ export class TokenService implements OnModuleInit {
       return tokenResults.data;
     } catch (e) {
       this.logger.warn(`Data request error from price service: ${e}`);
+      return [];
     }
   }
 

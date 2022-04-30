@@ -9,7 +9,7 @@
     "prebuild": "rimraf dist",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "start": "./src/scripts/start-db.sh && nest start --watch",
     "start:dev": "nest start --watch",
     "start:dev:db": "./src/scripts/start-db.sh",
     "start:dev:nodemon": "nodemon --config nodemon.json",
