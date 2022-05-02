@@ -7,7 +7,7 @@ export const calculatePriceForToken = (
   price: string,
 ) => {
   if (!price) return '0';
-  if (Big(firstAmount).lte(0)) return '0';
+  if (Big(firstAmount).lte(0) || Big(secondAmount).lte(0)) return '0';
   return new Big(firstAmount)
     .mul(price)
     .div(secondAmount)
