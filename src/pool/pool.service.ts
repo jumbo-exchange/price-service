@@ -21,6 +21,10 @@ export const createClient = (uri: string) =>
   new ApolloClient({
     link: new HttpLink({ uri, fetch: fetch }),
     cache: new InMemoryCache(),
+    defaultOptions: {
+      query: { fetchPolicy: 'no-cache' },
+      watchQuery: { fetchPolicy: 'no-cache' },
+    },
   });
 
 export const createQuery = (
