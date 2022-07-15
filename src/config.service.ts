@@ -43,6 +43,10 @@ class ConfigService {
     return this.getValue('HELPER_URL');
   }
 
+  public getFiatPriceApiUrl(): string {
+    return this.getValue('FIAT_PRICE_API');
+  }
+
   public getNodeUrl(): string {
     return this.getValue('NODE_URL');
   }
@@ -60,6 +64,9 @@ class ConfigService {
   }
   public getNearTokenId(): string {
     return this.getValue('WRAP_NEAR_ADDRESS');
+  }
+  public getUSNTokenId(): string {
+    return this.getValue('USN_TOKEN_ADDRESS');
   }
 
   public getTypeOrmConfig(): TypeOrmModuleOptions {

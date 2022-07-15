@@ -17,6 +17,7 @@ import {
   DEFAULT_PAGE_LIMIT,
   EMPTY_POOL_VOLUME,
   LOW_LIQUIDITY_POOL_VOLUME,
+  NEAR_AND_USN_GET_PRICE_QUERY,
 } from '../constants';
 import { TokenData } from '../interfaces';
 
@@ -47,12 +48,13 @@ export class TokenService implements OnModuleInit {
     try {
       const nearAddress = configService.getNearTokenId();
       const jumboAddress = configService.getJumboTokenId();
+      const usnFiatAddress = configService.getUSNTokenId();
       const tokenPrices = await this.requestData();
       const filteredTokens = Object.entries(tokenPrices);
-      const [nearFiatPrice, poolsFromJumbo] = await Promise.all([
-        this.requestNearPrice(),
-        this.getDataFromPools(),
-      ]);
+      const [{ nearFiatPrice, usnFiatPrice }, poolsFromJumbo] = await Promise.all([
+          this.requestNearAndUSNPrice(),
+          this.getDataFromPools(),
+        ]);
 
       const [jumboPrice] = await this.calculateJumboPrice(
         poolsFromJumbo,
@@ -61,13 +63,15 @@ export class TokenService implements OnModuleInit {
       const filterPoolsByIds = poolsFromJumbo.filter(
         ({ token_account_ids }) =>
           token_account_ids.includes(nearAddress) ||
-          token_account_ids.includes(jumboAddress),
+          token_account_ids.includes(jumboAddress) ||
+          token_account_ids.includes(usnFiatAddress),
       );
 
       const newPrices = await this.calculatePrices(
         filterPoolsByIds,
         jumboPrice,
         nearFiatPrice,
+        usnFiatPrice,
       );
       const newIds = Object.keys(newPrices);
 
@@ -128,11 +132,16 @@ export class TokenService implements OnModuleInit {
     }
   }
 
-  async requestNearPrice() {
+  async requestNearAndUSNPrice() {
     try {
-      const nearHelperUrl = configService.getHelperUrl();
-      const nearData = await axios.get(`${nearHelperUrl}/fiat`);
-      return nearData.data.near.usd;
+      const fiatPriceUrl = configService.getFiatPriceApiUrl();
+      const priceData = await axios.get(
+        `${fiatPriceUrl}?${NEAR_AND_USN_GET_PRICE_QUERY}`,
+      );
+      return {
+        nearFiatPrice: priceData.data.near.usd,
+        usnFiatPrice: priceData.data.usn.usd,
+      };
     } catch (e) {
       this.logger.warn(`Data request error from helper: ${e}`);
     }
@@ -186,11 +195,14 @@ export class TokenService implements OnModuleInit {
     poolsFromJumbo: Pool[],
     jumboPrice: string,
     nearFiatPrice: string,
+    usnFiatPrice: string,
   ): Promise<{
     [key: string]: { price: string; volume: string; token: Token };
   }> {
     const jumboAddress = configService.getJumboTokenId();
     const nearAddress = configService.getNearTokenId();
+    const usnAddress = configService.getUSNTokenId();
+
     const newPrices = {};
     const poolsPrices: Array<{
       price: string;
@@ -204,6 +216,8 @@ export class TokenService implements OnModuleInit {
           jumboPrice,
           nearAddress,
           jumboAddress,
+          usnAddress,
+          usnFiatPrice,
         ),
       ),
     );
@@ -225,22 +239,57 @@ export class TokenService implements OnModuleInit {
     return newPrices;
   }
 
+  private getFiatBase(
+    pool: Pool,
+    nearFiatPrice: string,
+    jumboPrice: string,
+    nearAddress: string,
+    jumboAddress: string,
+    usnAddress: string,
+    usnFiatPrice: string,
+  ) {
+    const isNearFiat = pool.token_account_ids.includes(
+      configService.getNearTokenId(),
+    );
+    const isUSNFiat = pool.token_account_ids.includes(
+      configService.getUSNTokenId(),
+    );
+
+    if (isNearFiat || isUSNFiat) {
+      return {
+        fiatPrice: isNearFiat ? nearFiatPrice : usnFiatPrice,
+        fiatId: isNearFiat ? nearAddress : usnAddress,
+      };
+    } else {
+      return {
+        fiatPrice: jumboPrice,
+        fiatId: jumboAddress,
+      };
+    }
+  }
+
   async calculatePriceForPool(
     pool: Pool,
     nearFiatPrice: string,
     jumboPrice: string,
     nearAddress: string,
     jumboAddress: string,
+    usnAddress: string,
+    usnFiatPrice: string,
   ): Promise<{
     price: string;
     volume: string;
     token: Token;
   }> {
-    const isNearFiat = pool.token_account_ids.includes(
-      configService.getNearTokenId(),
+    const { fiatPrice, fiatId } = this.getFiatBase(
+      pool,
+      nearFiatPrice,
+      jumboPrice,
+      nearAddress,
+      jumboAddress,
+      usnAddress,
+      usnFiatPrice,
     );
-    const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
-    const fiatId = isNearFiat ? nearAddress : jumboAddress;
 
     const [price, token] = await this.calculatePriceFromPool(
       pool,
