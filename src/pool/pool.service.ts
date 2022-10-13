@@ -66,7 +66,7 @@ export class PoolService {
     private readonly poolRepo: Repository<Pool>,
   ) {}
 
-  @Cron(CronExpression.EVERY_4_HOURS)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCron() {
     this.logger.verbose('handleCron for pool service');
 
@@ -116,7 +116,7 @@ export class PoolService {
 
       await this.poolRepo.save(Object.values(newPools));
     } catch (e) {
-      this.logger.error(`Cron job error: ${e}`);
+      this.logger.error(`Cron job error in pool service: ${e}`);
     }
   }
 

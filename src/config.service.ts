@@ -58,8 +58,13 @@ class ConfigService {
   public getJumboTokenId(): string {
     return this.getValue('JUMBO_TOKEN_ADDRESS');
   }
+
   public getNearTokenId(): string {
     return this.getValue('WRAP_NEAR_ADDRESS');
+  }
+
+  public getBlackList(): string[] {
+    return this.getValue('BLACK_LIST').split(' ');
   }
 
   public getTypeOrmConfig(): TypeOrmModuleOptions {

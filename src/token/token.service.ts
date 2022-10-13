@@ -69,6 +69,7 @@ export class TokenService implements OnModuleInit {
         jumboPrice,
         nearFiatPrice,
       );
+
       const newIds = Object.keys(newPrices);
 
       const uniqueTokensIds = newIds.filter((id) => !tokenPrices[id]);
@@ -113,7 +114,7 @@ export class TokenService implements OnModuleInit {
 
       await this.tokenRepo.save(newTokens);
     } catch (e) {
-      this.logger.error(`Cron job error: ${e}`);
+      this.logger.error(`Cron job error in token service: ${e}`);
     }
   }
 
@@ -166,6 +167,7 @@ export class TokenService implements OnModuleInit {
 
   async getDataFromPools() {
     try {
+      const blackList = configService.getBlackList();
       const connection = await this.near;
       const length = await connection.viewFunction('get_number_of_pools');
       const pages = Math.ceil(length / DEFAULT_PAGE_LIMIT);
@@ -174,8 +176,13 @@ export class TokenService implements OnModuleInit {
           this.getPoolsPage(connection, i * DEFAULT_PAGE_LIMIT),
         ),
       );
+      const filtered = pools
+        .flat()
+        .filter((el) =>
+          el.token_account_ids.every((token) => !blackList.includes(token)),
+        );
 
-      return pools.flat();
+      return filtered;
     } catch (e) {
       this.logger.warn(`Data request error from pools: ${e}`);
       return [];
@@ -236,24 +243,29 @@ export class TokenService implements OnModuleInit {
     volume: string;
     token: Token;
   }> {
-    const isNearFiat = pool.token_account_ids.includes(
-      configService.getNearTokenId(),
-    );
-    const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
-    const fiatId = isNearFiat ? nearAddress : jumboAddress;
+    try {
+      const isNearFiat = pool.token_account_ids.includes(
+        configService.getNearTokenId(),
+      );
 
-    const [price, token] = await this.calculatePriceFromPool(
-      pool,
-      fiatPrice,
-      fiatId,
-    );
+      const fiatPrice = isNearFiat ? nearFiatPrice : jumboPrice;
+      const fiatId = isNearFiat ? nearAddress : jumboAddress;
 
-    const calculatedVolume = calculateVolume(pool.supplies, {
-      [token.id]: price,
-      [fiatId]: fiatPrice,
-    });
+      const [price, token] = await this.calculatePriceFromPool(
+        pool,
+        fiatPrice,
+        fiatId,
+      );
 
-    return { price, volume: calculatedVolume, token };
+      const calculatedVolume = calculateVolume(pool.supplies, {
+        [token.id]: price,
+        [fiatId]: fiatPrice,
+      });
+
+      return { price, volume: calculatedVolume, token };
+    } catch (e) {
+      this.logger.error(`Error while calculatePriceForPool for ${pool.id}`);
+    }
   }
 
   async calculatePriceFromPool(
