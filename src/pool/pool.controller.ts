@@ -12,7 +12,7 @@ export class PoolController {
   @ApiOperation({ summary: 'Get pool volumes' })
   @ApiResponse({ status: 200, description: 'Get pool volumes array' })
   findAll(@Query() { take, skip }): Promise<Pool[]> {
-    return this.poolService.findAll(take, skip);
+    return this.poolService.getDailyPoolVolumes(take, skip);
   }
 
   @Get('/CoinMarketCap')
@@ -21,11 +21,4 @@ export class PoolController {
   getPoolCoinMarketCap(@Query() { take, skip }): Promise<any> {
     return this.poolService.getPoolCoinMarketCap(take, skip);
   }
-
-  // @Get()
-  // @ApiOperation({ summary: 'Get pools for CoinGecko' })
-  // @ApiResponse({ status: 200, description: 'Get pool volumes array' })
-  // getPoolCoinGecko(@Query() { take, skip }): Promise<Pool[]> {
-  //   return this.poolService.getPoolCoinGecko(take, skip);
-  // }
 }

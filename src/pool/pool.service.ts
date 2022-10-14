@@ -178,30 +178,38 @@ export class PoolService {
     }
   }
 
-  async findAll(take = 1000, skip = 0): Promise<Pool[]> {
+  async getDailyPoolVolumes(take = 1000, skip = 0): Promise<Pool[]> {
     const [data] = await this.poolRepo.findAndCount({ take, skip });
     const currentDate = Date.now();
     return data.filter((pool) => {
       const poolDate = new Date(pool.updatedAt).getTime();
-      return currentDate - poolDate < MILLISECONDS_IN_HOUR * HOURS_IN_DAY;
+      return (
+        currentDate - poolDate < MILLISECONDS_IN_HOUR * HOURS_IN_DAY &&
+        Big(pool.volume24hFirst).gt(0) &&
+        Big(pool.volume24hSecond).gt(0)
+      );
     });
   }
 
   async getPoolCoinMarketCap(take = 1000, skip = 0): Promise<any> {
-    const pools = await this.findAll(take, skip);
+    const [pools] = await this.poolRepo.findAndCount({ take, skip });
     const tokens = await this.tokenService.findAll();
     return this.formatPoolsCoinMarketCap(pools, tokens);
   }
 
   async formatPoolsCoinMarketCap(pools: Pool[], tokens: Token[]) {
-    pools.map((pool) => {
+    return pools.reduce((acc, pool) => {
       const baseTokenAddress = pool.tokenFirst;
       const quoteTokenAddress = pool.tokenSecond;
+      const id = `${baseTokenAddress}_${quoteTokenAddress}`;
       const baseToken = tokens.find((token) => token.id === baseTokenAddress);
       const quoteToken = tokens.find((token) => token.id === quoteTokenAddress);
-      if (!baseToken || !quoteToken) return;
-      const lastPrice = Big(pool.volume24hSecond).div(pool.volume24hFirst);
-      return {
+      if (!baseToken || !quoteToken) return acc;
+      const lastPrice = Big(pool.volumeFirst).gt(0)
+        ? Big(pool.volumeSecond).div(pool.volumeFirst)
+        : 0;
+
+      const data = {
         base_id: baseTokenAddress,
         base_name: baseToken.symbol,
         base_symbol: baseToken.symbol,
@@ -212,8 +220,8 @@ export class PoolService {
         base_volume: pool.volumeFirst,
         quote_volume: pool.volumeSecond,
       };
-    });
-    return;
+      return { ...acc, [id]: data };
+    }, {});
   }
 
   async getDataFromPools(): Promise<ContractPool[]> {
@@ -265,11 +273,4 @@ export class PoolService {
       return [];
     }
   }
-
-  // async getPoolCoinMarketCap(
-  //   take = 1000,
-  //   skip = 0,
-  // ): Promise<{ [key: string]: PoolCMC }> {
-  //   return {};
-  // }
 }
