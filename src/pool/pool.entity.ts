@@ -12,6 +12,12 @@ export class Pool {
   volume24hSecond: string;
 
   @Column()
+  volumeFirst: string;
+
+  @Column()
+  volumeSecond: string;
+
+  @Column()
   tokenFirst: string;
 
   @Column()

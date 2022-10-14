@@ -21,7 +21,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "pretypeorm": "(rm ormconfig.json || :) && ts-node -r tsconfig-paths/register src/scripts/write-type-orm-config.ts"
+    "pretypeorm": "(rm ./ormconfig.json || :) && ts-node -r tsconfig-paths/register src/scripts/write-type-orm-config.ts",
+    "add-migration": "ts-node ./node_modules/typeorm/cli.js migration:generate -n jumbo -d src/migrations",
+    "update-database": "ts-node ./node_modules/typeorm/cli.js migration:run"
   },
   "dependencies": {
     "@nestjs/common": "^8.0.0",
@@ -70,7 +72,7 @@
     "supertest": "^6.1.3",
     "ts-jest": "^27.0.3",
     "ts-loader": "^9.2.3",
-    "ts-node": "^10.4.0",
+    "ts-node": "^10.9.1",
     "tsconfig-paths": "^3.10.1",
     "typescript": "^4.3.5"
   },

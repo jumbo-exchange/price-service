@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  forwardRef,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
@@ -13,20 +19,9 @@ import {
   calculateVolume,
   formatTokenAmount,
 } from '../helpers';
-import {
-  DEFAULT_PAGE_LIMIT,
-  EMPTY_POOL_VOLUME,
-  LOW_LIQUIDITY_POOL_VOLUME,
-} from '../constants';
-import { TokenData } from '../interfaces';
-
-interface Pool {
-  id: number;
-  amounts: string[];
-  token_account_ids: string[];
-  supplies: { [key: string]: string };
-  total_fee: string;
-}
+import { EMPTY_POOL_VOLUME, LOW_LIQUIDITY_POOL_VOLUME } from '../constants';
+import { ContractPool, TokenData } from '../interfaces';
+import { PoolService } from 'src/pool/pool.service';
 
 @Injectable()
 export class TokenService implements OnModuleInit {
@@ -34,6 +29,8 @@ export class TokenService implements OnModuleInit {
   private near: Awaited<ReturnType<typeof initializeNearConnection>>;
 
   constructor(
+    @Inject(forwardRef(() => PoolService))
+    private poolService: PoolService,
     @InjectRepository(Token)
     private readonly tokenRepo: Repository<Token>,
   ) {}
@@ -51,7 +48,7 @@ export class TokenService implements OnModuleInit {
       const filteredTokens = Object.entries(tokenPrices);
       const [nearFiatPrice, poolsFromJumbo] = await Promise.all([
         this.requestNearPrice(),
-        this.getDataFromPools(),
+        this.poolService.getDataFromPools(),
       ]);
 
       const [jumboPrice] = await this.calculateJumboPrice(
@@ -139,58 +136,8 @@ export class TokenService implements OnModuleInit {
     }
   }
 
-  private async getPoolsPage(
-    service,
-    from: number,
-    limit: number = DEFAULT_PAGE_LIMIT,
-  ): Promise<Pool[]> {
-    try {
-      const poolPage = await service.viewFunction('get_pools', {
-        from_index: from,
-        limit: limit,
-      });
-      return poolPage.map((pool) => {
-        pool.supplies = pool.amounts.reduce(
-          (acc: { [tokenId: string]: string }, amount: string, i: number) => {
-            acc[pool.token_account_ids[i]] = amount;
-            return acc;
-          },
-          {},
-        );
-        return pool;
-      });
-    } catch (e) {
-      this.logger.warn(`Data request error from getting pool page: ${e}`);
-      return [];
-    }
-  }
-
-  async getDataFromPools() {
-    try {
-      const blackList = configService.getBlackList();
-      const connection = await this.near;
-      const length = await connection.viewFunction('get_number_of_pools');
-      const pages = Math.ceil(length / DEFAULT_PAGE_LIMIT);
-      const pools = await Promise.all(
-        [...Array(pages)].map((_, i) =>
-          this.getPoolsPage(connection, i * DEFAULT_PAGE_LIMIT),
-        ),
-      );
-      const filtered = pools
-        .flat()
-        .filter((el) =>
-          el.token_account_ids.every((token) => !blackList.includes(token)),
-        );
-
-      return filtered;
-    } catch (e) {
-      this.logger.warn(`Data request error from pools: ${e}`);
-      return [];
-    }
-  }
-
   async calculatePrices(
-    poolsFromJumbo: Pool[],
+    poolsFromJumbo: ContractPool[],
     jumboPrice: string,
     nearFiatPrice: string,
   ): Promise<{
@@ -233,7 +180,7 @@ export class TokenService implements OnModuleInit {
   }
 
   async calculatePriceForPool(
-    pool: Pool,
+    pool: ContractPool,
     nearFiatPrice: string,
     jumboPrice: string,
     nearAddress: string,
@@ -269,7 +216,7 @@ export class TokenService implements OnModuleInit {
   }
 
   async calculatePriceFromPool(
-    pool: Pool,
+    pool: ContractPool,
     fiatPrice: string,
     fiatTokenId: string = configService.getNearTokenId(),
   ): Promise<[string, Token]> {
@@ -325,7 +272,7 @@ export class TokenService implements OnModuleInit {
     return token;
   }
 
-  calculateJumboPrice(poolsFromJumbo: Pool[], nearPrice: string) {
+  calculateJumboPrice(poolsFromJumbo: ContractPool[], nearPrice: string) {
     const pool = poolsFromJumbo.find(
       (pool) => pool.id === Number(configService.getJumboPoolId()),
     );
