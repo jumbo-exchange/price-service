@@ -85,7 +85,7 @@ export class PoolService {
     try {
       const [pools, swaps] = await Promise.all([
         this.getDataFromPools(),
-        await this.requestDataForDay(),
+        this.requestDataForDay(),
       ]);
 
       const poolsMap = pools.reduce(

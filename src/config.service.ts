@@ -78,8 +78,8 @@ class ConfigService {
       database: this.getValue('POSTGRES_DATABASE'),
 
       entities: [__dirname + '/*/*.entity{.ts,.js}'],
-      migrations: [],
-      synchronize: true,
+      migrations: [__dirname + '/migrations/*{.ts,.js}'],
+      synchronize: false,
       ssl: this.env.POSTGRES_SSL ? !!this.getValue('POSTGRES_SSL') : false,
     };
   }

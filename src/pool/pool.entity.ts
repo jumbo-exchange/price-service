@@ -12,12 +12,6 @@ export class Pool {
   volume24hSecond: string;
 
   @Column()
-  volumeFirst: string;
-
-  @Column()
-  volumeSecond: string;
-
-  @Column()
   tokenFirst: string;
 
   @Column()
@@ -25,4 +19,10 @@ export class Pool {
 
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
+
+  @Column()
+  volumeFirst: string;
+
+  @Column()
+  volumeSecond: string;
 }
