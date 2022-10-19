@@ -78,7 +78,7 @@ export class PoolService {
     private readonly poolRepo: Repository<Pool>,
   ) {}
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron(CronExpression.EVERY_4_HOURS)
   async handleCron() {
     this.logger.verbose('handleCron for pool service');
 
