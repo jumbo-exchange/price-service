@@ -12,11 +12,11 @@ import fetch from 'cross-fetch';
 import { Pool } from './pool.entity';
 import { configService } from '../config.service';
 import { ContractPool, Swap } from '../interfaces';
-import { Token } from '../token/token.entity';
 
 import { TokenService } from 'src/token/token.service';
 import { DEFAULT_PAGE_LIMIT } from 'src/constants';
 import { initializeNearConnection } from 'src/near-connection';
+import { formatTokenAmount } from 'src/helpers';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
@@ -191,13 +191,9 @@ export class PoolService {
     });
   }
 
-  async getPoolCoinMarketCap(take = 1000, skip = 0): Promise<any> {
+  async formatPools(take = 1000, skip = 0) {
     const [pools] = await this.poolRepo.findAndCount({ take, skip });
     const tokens = await this.tokenService.findAll();
-    return this.formatPoolsCoinMarketCap(pools, tokens);
-  }
-
-  async formatPoolsCoinMarketCap(pools: Pool[], tokens: Token[]) {
     return pools.reduce((acc, pool) => {
       const baseTokenAddress = pool.tokenFirst;
       const quoteTokenAddress = pool.tokenSecond;
@@ -208,17 +204,40 @@ export class PoolService {
       const lastPrice = Big(pool.volumeFirst).gt(0)
         ? Big(pool.volumeSecond).div(pool.volumeFirst)
         : 0;
+      const baseTokenLiquidity = pool.volumeFirst
+        ? Big(formatTokenAmount(pool.volumeFirst, baseToken.decimal)).mul(
+            baseToken.price,
+          )
+        : 0;
+
+      const quoteTokenLiquidity = pool.volumeSecond
+        ? Big(formatTokenAmount(pool.volumeSecond, quoteToken.decimal)).mul(
+            quoteToken.price,
+          )
+        : 0;
+
+      const liquidity = Big(baseTokenLiquidity)
+        .add(quoteTokenLiquidity)
+        .toFixed(5);
 
       const data = {
+        pool_id: pool.id,
+        liquidity,
+        last_price: lastPrice.toFixed(10),
         base_id: baseTokenAddress,
         base_name: baseToken.symbol,
         base_symbol: baseToken.symbol,
+        base_volume: pool.volume24hFirst,
+        base_price_usd: baseToken.price,
+        base_liquidity: pool.volumeFirst,
+        base_liquidity_usd: baseTokenLiquidity,
         quote_id: quoteTokenAddress,
         quote_name: quoteToken.symbol,
         quote_symbol: quoteToken.symbol,
-        last_price: lastPrice.toFixed(10),
-        base_volume: pool.volumeFirst,
-        quote_volume: pool.volumeSecond,
+        quote_volume: pool.volume24hSecond,
+        quote_price_usd: quoteToken.price,
+        quote_liquidity: pool.volumeSecond,
+        quote_liquidity_usd: quoteTokenLiquidity,
       };
       return { ...acc, [id]: data };
     }, {});
