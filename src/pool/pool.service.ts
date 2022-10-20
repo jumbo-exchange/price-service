@@ -13,10 +13,10 @@ import { Pool } from './pool.entity';
 import { configService } from '../config.service';
 import { ContractPool, Swap } from '../interfaces';
 
-import { TokenService } from 'src/token/token.service';
-import { DEFAULT_PAGE_LIMIT } from 'src/constants';
-import { initializeNearConnection } from 'src/near-connection';
-import { formatTokenAmount } from 'src/helpers';
+import { TokenService } from '../token/token.service';
+import { DEFAULT_PAGE_LIMIT } from '../constants';
+import { initializeNearConnection } from '../near-connection';
+import { formatTokenAmount } from '../helpers';
 
 const HOUR_IN_SECONDS = 60 * 60;
 const HOURS_IN_DAY = 24;
