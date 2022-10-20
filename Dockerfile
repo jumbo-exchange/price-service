@@ -26,4 +26,4 @@ EXPOSE 3001
 
 USER node
 
-CMD npm run start:prod
+CMD npm run update-database && npm run start:prod
