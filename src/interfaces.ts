@@ -12,3 +12,11 @@ export interface Swap {
 }
 
 export type TokenData = { decimal: number; symbol: string; price: string };
+
+export interface ContractPool {
+  id: number;
+  amounts: string[];
+  token_account_ids: string[];
+  supplies: { [key: string]: string };
+  total_fee: string;
+}

@@ -58,8 +58,13 @@ class ConfigService {
   public getJumboTokenId(): string {
     return this.getValue('JUMBO_TOKEN_ADDRESS');
   }
+
   public getNearTokenId(): string {
     return this.getValue('WRAP_NEAR_ADDRESS');
+  }
+
+  public getBlackList(): string[] {
+    return this.getValue('BLACK_LIST').split(' ');
   }
 
   public getTypeOrmConfig(): TypeOrmModuleOptions {
@@ -72,8 +77,9 @@ class ConfigService {
       password: this.getValue('POSTGRES_PASSWORD'),
       database: this.getValue('POSTGRES_DATABASE'),
 
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true,
+      entities: [__dirname + '/*/*.entity{.ts,.js}'],
+      migrations: [__dirname + '/migrations/*{.ts,.js}'],
+      synchronize: false,
       ssl: this.env.POSTGRES_SSL ? !!this.getValue('POSTGRES_SSL') : false,
     };
   }
