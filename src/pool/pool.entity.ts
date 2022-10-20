@@ -20,9 +20,9 @@ export class Pool {
   @CreateDateColumn({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @Column()
+  @Column({ default: '0' })
   volumeFirst: string;
 
-  @Column()
+  @Column({ default: '0' })
   volumeSecond: string;
 }
