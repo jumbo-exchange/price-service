@@ -185,8 +185,7 @@ export class PoolService {
       const poolDate = new Date(pool.updatedAt).getTime();
       return (
         currentDate - poolDate < MILLISECONDS_IN_HOUR * HOURS_IN_DAY &&
-        Big(pool.volume24hFirst).gt(0) &&
-        Big(pool.volume24hSecond).gt(0)
+        (Big(pool.volume24hFirst).gt(0) || Big(pool.volume24hSecond).gt(0))
       );
     });
   }
